@@ -1,0 +1,11 @@
+--- a/man/Makefile.am	2019-01-22 10:01:00.000000000 +0100
++++ b/man/Makefile.am	2019-12-08 13:26:29.050991448 +0100
+@@ -22,7 +22,7 @@
+ LANGUAGES = ru
+ 
+ if HAVE_PO4A
+-man_MANS = gerbv.1 gerbv.ru.1
++man_MANS = gerbv.1
+ else
+ man_MANS = gerbv.1
+ 

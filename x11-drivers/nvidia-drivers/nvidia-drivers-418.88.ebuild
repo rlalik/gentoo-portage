@@ -89,11 +89,11 @@ nvidia_drivers_versions_check() {
 		die "Unexpected \${DEFAULT_ABI} = ${DEFAULT_ABI}"
 	fi
 
-	if use kernel_linux && kernel_is ge 5 5; then
+	if use kernel_linux && kernel_is ge 5 6; then
 		ewarn "Gentoo supports kernels which are supported by NVIDIA"
 		ewarn "which are limited to the following kernels:"
-		ewarn "<sys-kernel/gentoo-sources-5.5"
-		ewarn "<sys-kernel/vanilla-sources-5.5"
+		ewarn "<sys-kernel/gentoo-sources-5.6"
+		ewarn "<sys-kernel/vanilla-sources-5.6"
 		ewarn ""
 		ewarn "You are free to utilize epatch_user to provide whatever"
 		ewarn "support you feel is appropriate, but will not receive"
@@ -197,6 +197,11 @@ src_prepare() {
 		sed -e '3711s/vmlinux/\*vmlinux/' -i ${WORKDIR}/kernel/conftest.sh
 		sed -e '65iEXTRA_CFLAGS += -DNV_BUILD_MODULE_INSTANCES=0' -i ${WORKDIR}/kernel/Kbuild
 		sed -e '657s/DRIVER_PRIME |//' -i ${WORKDIR}/kernel/nvidia-drm/nvidia-drm-drv.c
+	fi
+
+	if use kernel_linux && kernel_is ge 5 5; then
+		einfo "Patching files for kernels higher than 5.4"
+		epatch ${FILESDIR}/${P}-linux_5.5_comp.patch
 	fi
 
 	default

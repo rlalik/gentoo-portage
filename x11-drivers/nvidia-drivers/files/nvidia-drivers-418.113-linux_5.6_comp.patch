@@ -1,0 +1,21 @@
+--- a/kernel/nvidia-drm/nvidia-drm-linux.c        2019-10-27 02:02:39.000000000 +0100
++++ b/kernel/nvidia-drm/nvidia-drm-linux.c        2020-06-18 19:13:58.732694816 +0200
+@@ -23,6 +23,7 @@
+ #include <linux/module.h>
+ #include <linux/slab.h>
+ #include <linux/err.h>
++#include <linux/vmalloc.h>
+ 
+ #include "nvidia-drm-os-interface.h"
+ #include "nvidia-drm.h"
+--- a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c     2020-06-18 19:12:03.561702358 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c     2020-06-18 19:14:41.376692024 +0200
+@@ -22,6 +22,8 @@
+ 
+ #include "nvidia-drm-conftest.h"
+ 
++#include <linux/io.h>
++
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+ #include "nvidia-drm-gem-nvkms-memory.h"

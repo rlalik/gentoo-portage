@@ -1,0 +1,517 @@
+diff -Naur a/kernel/conftest.sh b/kernel/conftest.sh
+--- a/kernel/conftest.sh	2020-01-30 02:01:17.410248666 +0100
++++ b/kernel/conftest.sh	2020-01-30 02:08:43.844219433 +0100
+@@ -96,7 +96,7 @@ test_headers() {
+     # present) are provided by the target kernel.
+     #
+     FILES="asm/system.h"
+-    FILES="$FILES drm/drmP.h"
++    FILES="$FILES drm/drm_plane.h"
+     FILES="$FILES drm/drm_auth.h"
+     FILES="$FILES drm/drm_gem.h"
+     FILES="$FILES drm/drm_crtc.h"
+@@ -124,6 +124,7 @@ test_headers() {
+     FILES="$FILES linux/sched/signal.h"
+     FILES="$FILES linux/sched/task.h"
+     FILES="$FILES linux/sched/task_stack.h"
++    FILES="$FILES linux/reservation.h"
+     FILES="$FILES xen/ioemu.h"
+     FILES="$FILES linux/fence.h"
+ 
+@@ -1181,8 +1182,12 @@ compile_test() {
+         drm_available)
+             # Determine if the DRM subsystem is usable
+             CODE="
++            typedef long __kernel_old_time_t;
+             #if defined(NV_DRM_DRMP_H_PRESENT)
+             #include <drm/drmP.h>
++            #else
++            #include <drm/drm_drv.h>
++            #include <drm/drm_prime.h>
+             #endif
+             #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE)
+             #error DRM not enabled
+@@ -1225,6 +1230,8 @@ compile_test() {
+             CODE="
+             #if defined(NV_DRM_DRMP_H_PRESENT)
+             #include <drm/drmP.h>
++            #else
++            #include <drm/drm_plane.h>
+             #endif
+             void conftest_drm_dev_unref(void) {
+                 drm_dev_unref();
+@@ -1767,6 +1774,8 @@ compile_test() {
+             echo "$CONFTEST_PREAMBLE
+             #if defined(NV_DRM_DRMP_H_PRESENT)
+             #include <drm/drmP.h>
++            #else
++            #include <drm/drm_plane.h>
+             #endif
+             #include <drm/drm_atomic.h>
+             #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE)
+@@ -1895,7 +1904,7 @@ compile_test() {
+             # attached drivers") in v3.14 (2013-12-11)
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_drv.h>
+             int conftest_drm_driver_has_legacy_dev_list(void) {
+                 return offsetof(struct drm_driver, legacy_dev_list);
+             }"
+@@ -1919,7 +1928,7 @@ compile_test() {
+             #   2017-07-23  e6fc3b68558e4c6d8d160b5daf2511b99afa8814
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_plane.h>
+ 
+             int conftest_drm_crtc_init_with_planes_has_name_arg(void) {
+                 return
+@@ -1935,7 +1944,7 @@ compile_test() {
+             compile_check_conftest "$CODE" "NV_DRM_CRTC_INIT_WITH_PLANES_HAS_NAME_ARG" "" "types"
+ 
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_plane.h>
+ 
+             int conftest_drm_encoder_init_has_name_arg(void) {
+                 return
+@@ -1950,7 +1959,7 @@ compile_test() {
+             compile_check_conftest "$CODE" "NV_DRM_ENCODER_INIT_HAS_NAME_ARG" "" "types"
+ 
+             echo "$CONFTEST_PREAMBLE
+-            #include <drm/drmP.h>
++            #include <drm/drm_plane.h>
+ 
+             int conftest_drm_universal_plane_init_has_format_modifiers_arg(void) {
+                 return
+@@ -1977,7 +1986,7 @@ compile_test() {
+                 echo "#undef NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG" | append_conftest "types"
+ 
+                 echo "$CONFTEST_PREAMBLE
+-                #include <drm/drmP.h>
++                #include <drm/drm_plane.h>
+ 
+                 int conftest_drm_universal_plane_init_has_name_arg(void) {
+                     return
+@@ -2015,7 +2024,7 @@ compile_test() {
+             # in v4.5 (2015-12-03)
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_plane.h>
+             void conftest_drm_mode_connector_list_update_has_merge_type_bits_arg(void) {
+                 drm_mode_connector_list_update(
+                     NULL,  /* struct drm_connector *connector */
+@@ -2050,7 +2059,7 @@ compile_test() {
+             # callback") in v3.18 (2014-08-29)
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_plane.h>
+             int conftest_drm_driver_has_set_busid(void) {
+                 return offsetof(struct drm_driver, set_busid);
+             }"
+@@ -2067,9 +2076,9 @@ compile_test() {
+             # objects") in v3.17 (2014-07-01)
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_drv.h>
+             int conftest_drm_driver_has_gem_prime_res_obj(void) {
+-                return offsetof(struct drm_driver, gem_prime_res_obj);
++                //return offsetof(struct drm_driver, gem_prime_res_obj);
+             }"
+ 
+             compile_check_conftest "$CODE" "NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ" "" "types"
+@@ -2534,6 +2543,8 @@ compile_test() {
+             echo "$CONFTEST_PREAMBLE
+             #if defined(NV_DRM_DRMP_H_PRESENT)
+             #include <drm/drmP.h>
++            #else
++            #include <drm/drm_drv.h>
+             #endif
+             #if defined(NV_DRM_DRM_GEM_H_PRESENT)
+             #include <drm/drm_gem.h>
+@@ -2563,7 +2574,7 @@ compile_test() {
+             # in v4.8 (2016-06-21)
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_drv.h>
+             void conftest_drm_master_drop_has_from_release_arg(struct drm_driver *drv) {
+                 drv->master_drop(NULL, NULL, false);
+             }"
+@@ -2730,7 +2741,7 @@ compile_test() {
+             # type of the unload hook to void") in v4.11 (2017-01-06)
+             #
+             CODE="
+-            #include <drm/drmP.h>
++            #include <drm/drm_drv.h>
+ 
+             int conftest_drm_driver_unload_has_int_return_type(struct drm_driver *drv) {
+                 return drv->unload(NULL /* dev */);
+@@ -3122,7 +3133,6 @@ compile_test() {
+             # Introduce drm_framebuffer_{get,put}()) on 2017-02-28.
+             #
+             CODE="
+-            #include <drm/drmP.h>
+             #if defined(NV_DRM_DRM_FRAMEBUFFER_H_PRESENT)
+             #include <drm/drm_framebuffer.h>
+             #endif
+@@ -3141,7 +3151,6 @@ compile_test() {
+             # Introduce drm_gem_object_{get,put}()) on 2017-02-28.
+             #
+             CODE="
+-            #include <drm/drmP.h>
+             #if defined(NV_DRM_DRM_GEM_H_PRESENT)
+             #include <drm/drm_gem.h>
+             #endif
+@@ -3160,7 +3169,6 @@ compile_test() {
+             # introduce drm_dev_{get/put} functions) on 2017-09-26.
+             #
+             CODE="
+-            #include <drm/drmP.h>
+             #if defined(NV_DRM_DRM_DRV_H_PRESENT)
+             #include <drm/drm_drv.h>
+             #endif
+diff -Naur a/kernel/nvidia-drm/nvidia-dma-fence-helper.h b/kernel/nvidia-drm/nvidia-dma-fence-helper.h
+--- a/kernel/nvidia-drm/nvidia-dma-fence-helper.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-dma-fence-helper.h	2020-01-30 00:06:29.483699699 +0100
+@@ -40,7 +40,9 @@
+ #include <linux/dma-fence.h>
+ #endif
+ 
++#if defined(NV_LINUX_RESERVATION_H_PRESENT)
+ #include <linux/reservation.h>
++#endif
+ 
+ #if defined(NV_LINUX_FENCE_H_PRESENT)
+ typedef struct fence nv_dma_fence_t;
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-connector.c b/kernel/nvidia-drm/nvidia-drm-connector.c
+--- a/kernel/nvidia-drm/nvidia-drm-connector.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-connector.c	2020-01-30 01:43:57.517316760 +0100
+@@ -67,11 +67,11 @@ static enum drm_connector_status __nv_dr
+ 
+     enum drm_connector_status status = connector_status_disconnected;
+ 
++    struct drm_encoder *encoder;
+     struct drm_encoder *detected_encoder = NULL;
+     struct nv_drm_encoder *nv_detected_encoder = NULL;
+ 
+     struct NvKmsKapiDynamicDisplayParams *pDetectParams = NULL;
+-    unsigned int i;
+ 
+     BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
+ 
+@@ -87,22 +87,9 @@ static enum drm_connector_status __nv_dr
+         goto done;
+     }
+ 
+-    for (i = 0;
+-         i < DRM_CONNECTOR_MAX_ENCODER && detected_encoder == NULL; i++) {
+-        struct drm_encoder *encoder;
++    drm_connector_for_each_possible_encoder(connector, encoder) {
+         struct nv_drm_encoder *nv_encoder;
+ 
+-        if (connector->encoder_ids[i] == 0) {
+-            break;
+-        }
+-
+-        encoder = nv_drm_encoder_find(dev, connector->encoder_ids[i]);
+-
+-        if (encoder == NULL) {
+-            BUG_ON(encoder != NULL);
+-            continue;
+-        }
+-
+         /*
+          * DVI-I connectors can drive both digital and analog
+          * encoders.  If a digital connection has been forced then
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-connector.h b/kernel/nvidia-drm/nvidia-drm-connector.h
+--- a/kernel/nvidia-drm/nvidia-drm-connector.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-connector.h	2020-01-29 23:33:00.975831219 +0100
+@@ -27,7 +27,7 @@
+ 
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ 
+ #include "nvtypes.h"
+ #include "nvkms-api-types.h"
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-crtc.h b/kernel/nvidia-drm/nvidia-drm-crtc.h
+--- a/kernel/nvidia-drm/nvidia-drm-crtc.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-crtc.h	2020-01-29 23:35:47.385820322 +0100
+@@ -29,7 +29,8 @@
+ 
+ #include "nvidia-drm-helper.h"
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
++#include <drm/drm_crtc.h>
+ #include "nvtypes.h"
+ #include "nvkms-kapi.h"
+ 
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-drv.c b/kernel/nvidia-drm/nvidia-drm-drv.c
+--- a/kernel/nvidia-drm/nvidia-drm-drv.c	2020-01-30 02:01:17.436248664 +0100
++++ b/kernel/nvidia-drm/nvidia-drm-drv.c	2020-01-30 01:23:28.580397233 +0100
+@@ -39,8 +39,11 @@
+ 
+ #include "nvidia-drm-ioctl.h"
+ 
+-#include <drm/drmP.h>
+-
++#include <drm/drm_plane.h>
++#include <drm/drm_device.h>
++#include <drm/drm_vblank.h>
++#include <drm/drm_ioctl.h>
++#include <linux/pci.h>
+ /*
+  * Commit fcd70cd36b9b ("drm: Split out drm_probe_helper.h")
+  * moves a number of helper function definitions from
+@@ -670,7 +673,7 @@ static struct drm_driver nv_drm_driver =
+     .gem_prime_vunmap       = nv_drm_gem_prime_vunmap,
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+-    .gem_prime_res_obj      = nv_drm_gem_prime_res_obj,
++    //.gem_prime_res_obj      = nv_drm_gem_prime_res_obj,
+ #endif
+ 
+ #if defined(NV_DRM_DRIVER_HAS_SET_BUSID)
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-encoder.h b/kernel/nvidia-drm/nvidia-drm-encoder.h
+--- a/kernel/nvidia-drm/nvidia-drm-encoder.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-encoder.h	2020-01-29 23:33:00.975831219 +0100
+@@ -32,7 +32,7 @@
+ #if defined(NV_DRM_DRM_ENCODER_H_PRESENT)
+ #include <drm/drm_encoder.h>
+ #else
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ #endif
+ 
+ #include "nvkms-kapi.h"
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-fb.h b/kernel/nvidia-drm/nvidia-drm-fb.h
+--- a/kernel/nvidia-drm/nvidia-drm-fb.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-fb.h	2020-01-30 01:02:48.999478402 +0100
+@@ -27,7 +27,8 @@
+ 
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
++#include <drm/drm_framebuffer.h>
+ #include "nvidia-drm-gem-nvkms-memory.h"
+ #include "nvkms-kapi.h"
+ 
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-gem.c b/kernel/nvidia-drm/nvidia-drm-gem.c
+--- a/kernel/nvidia-drm/nvidia-drm-gem.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-gem.c	2020-01-30 01:12:23.752440767 +0100
+@@ -24,6 +24,8 @@
+ 
+ #if defined(NV_DRM_AVAILABLE)
+ 
++#include <drm/drm_drv.h>
++#include <drm/drm_prime.h>
+ #include "nvidia-drm-priv.h"
+ #include "nvidia-drm-ioctl.h"
+ #include "nvidia-drm-prime-fence.h"
+@@ -46,7 +48,7 @@ void nv_drm_gem_free(struct drm_gem_obje
+     drm_gem_object_release(&nv_gem->base);
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+-    reservation_object_fini(&nv_gem->resv);
++	dma_resv_fini(&nv_gem->resv);
+ #endif
+ 
+     nv_gem->ops->free(nv_gem);
+@@ -113,12 +115,14 @@ void nv_drm_gem_prime_vunmap(struct drm_
+ }
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
++/*
+ struct reservation_object* nv_drm_gem_prime_res_obj(struct drm_gem_object *obj)
+ {
+     struct nv_drm_gem_object *nv_gem = to_nv_gem_object(obj);
+ 
+     return &nv_gem->resv;
+ }
++*/
+ #endif
+ 
+ #endif /* NV_DRM_AVAILABLE */
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-gem.h b/kernel/nvidia-drm/nvidia-drm-gem.h
+--- a/kernel/nvidia-drm/nvidia-drm-gem.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-gem.h	2020-01-30 00:10:33.231683738 +0100
+@@ -29,7 +29,7 @@
+ 
+ #include "nvidia-drm-priv.h"
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ #include "nvkms-kapi.h"
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+@@ -56,7 +56,7 @@ struct nv_drm_gem_object {
+     const struct nv_drm_gem_object_funcs *ops;
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+-    struct reservation_object resv;
++    struct dma_resv resv;
+ #endif
+ };
+ 
+@@ -127,7 +127,7 @@ void nv_drm_gem_object_init(struct nv_dr
+     drm_gem_private_object_init(dev, &nv_gem->base, size);
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+-    reservation_object_init(&nv_gem->resv);
++    dma_resv_init(&nv_gem->resv);
+ #endif
+ }
+ 
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
+--- a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c	2020-01-30 01:47:22.117303362 +0100
+@@ -29,6 +29,8 @@
+ 
+ #include "nv-mm.h"
+ 
++#include <drm/drm_drv.h>
++
+ static void __nv_drm_gem_nvkms_memory_free(struct nv_drm_gem_object *nv_gem)
+ {
+     struct nv_drm_device *nv_dev = nv_gem->nv_dev;
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c b/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c
+--- a/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c	2020-01-30 01:47:46.698301753 +0100
+@@ -27,6 +27,8 @@
+ #include "nvidia-drm-gem-user-memory.h"
+ #include "nvidia-drm-ioctl.h"
+ 
++#include <drm/drm_prime.h>
++
+ static inline
+ void __nv_drm_gem_user_memory_free(struct nv_drm_gem_object *nv_gem)
+ {
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-helper.c b/kernel/nvidia-drm/nvidia-drm-helper.c
+--- a/kernel/nvidia-drm/nvidia-drm-helper.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-helper.c	2020-01-30 01:04:26.328472029 +0100
+@@ -31,7 +31,7 @@
+ 
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ #if defined(NV_DRM_DRM_ATOMIC_UAPI_H_PRESENT)
+ #include <drm/drm_atomic_uapi.h>
+ #endif
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-helper.h b/kernel/nvidia-drm/nvidia-drm-helper.h
+--- a/kernel/nvidia-drm/nvidia-drm-helper.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-helper.h	2020-01-30 01:00:30.911487445 +0100
+@@ -27,7 +27,8 @@
+ 
+ #if defined(NV_DRM_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
++#include <drm/drm_drv.h>
+ 
+ /*
+  * drm_dev_put() is added by commit 9a96f55034e41b4e002b767e9218d55f03bdff7d
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-modeset.c b/kernel/nvidia-drm/nvidia-drm-modeset.c
+--- a/kernel/nvidia-drm/nvidia-drm-modeset.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-modeset.c	2020-01-30 01:45:59.026308803 +0100
+@@ -33,6 +33,7 @@
+ #include <drm/drm_atomic.h>
+ #include <drm/drm_atomic_helper.h>
+ #include <drm/drm_crtc.h>
++#include <drm/drm_vblank.h>
+ 
+ struct nv_drm_atomic_state {
+     struct NvKmsKapiRequestedModeSetConfig config;
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-modeset.h b/kernel/nvidia-drm/nvidia-drm-modeset.h
+--- a/kernel/nvidia-drm/nvidia-drm-modeset.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-modeset.h	2020-01-29 23:33:00.976831219 +0100
+@@ -27,7 +27,7 @@
+ 
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ 
+ struct drm_atomic_state *nv_drm_atomic_state_alloc(struct drm_device *dev);
+ void nv_drm_atomic_state_clear(struct drm_atomic_state *state);
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-os-interface.h b/kernel/nvidia-drm/nvidia-drm-os-interface.h
+--- a/kernel/nvidia-drm/nvidia-drm-os-interface.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-os-interface.h	2020-01-29 23:33:00.976831219 +0100
+@@ -29,7 +29,7 @@
+ 
+ #if defined(NV_DRM_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ 
+ /* Set to true when the atomic modeset feature is enabled. */
+ extern bool nv_drm_modeset_module_param;
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-prime-fence.c b/kernel/nvidia-drm/nvidia-drm-prime-fence.c
+--- a/kernel/nvidia-drm/nvidia-drm-prime-fence.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-prime-fence.c	2020-01-30 01:04:26.329472029 +0100
+@@ -518,7 +518,7 @@ int nv_drm_gem_fence_attach_ioctl(struct
+         goto fence_context_create_fence_failed;
+     }
+ 
+-    reservation_object_add_excl_fence(&nv_gem->resv, fence);
++    dma_resv_add_excl_fence(&nv_gem->resv, fence);
+ 
+     ret = 0;
+ 
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-prime-fence.h b/kernel/nvidia-drm/nvidia-drm-prime-fence.h
+--- a/kernel/nvidia-drm/nvidia-drm-prime-fence.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-prime-fence.h	2020-01-29 23:33:00.976831219 +0100
+@@ -27,7 +27,7 @@
+ 
+ #if defined(NV_DRM_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+ 
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-priv.h b/kernel/nvidia-drm/nvidia-drm-priv.h
+--- a/kernel/nvidia-drm/nvidia-drm-priv.h	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-priv.h	2020-01-30 01:00:17.771488305 +0100
+@@ -27,7 +27,8 @@
+ 
+ #if defined(NV_DRM_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
++#include <drm/drm_device.h>
+ 
+ #if defined(NV_DRM_DRM_GEM_H_PRESENT)
+ #include <drm/drm_gem.h>
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-utils.c b/kernel/nvidia-drm/nvidia-drm-utils.c
+--- a/kernel/nvidia-drm/nvidia-drm-utils.c	2019-07-23 03:46:31.000000000 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-utils.c	2020-01-30 01:07:36.067459605 +0100
+@@ -24,6 +24,8 @@
+ 
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
++#include <drm/drm_modes.h>
++#include <drm/drm_fourcc.h>
+ #include "nvidia-drm-priv.h"
+ #include "nvidia-drm-utils.h"
+ 
+diff -Naur a/kernel/nvidia-drm/nvidia-drm-utils.h b/kernel/nvidia-drm/nvidia-drm-utils.h
+--- a/kernel/nvidia-drm/nvidia-drm-utils.h	2019-07-23 03:46:31.000000000 +0200
+a++ b/kernel/nvidia-drm/nvidia-drm-utils.h	2020-01-29 23:33:40.206828650 +0100
+@@ -27,7 +27,7 @@
+ 
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+-#include <drm/drmP.h>
++#include <drm/drm_plane.h>
+ #include "nvkms-kapi.h"
+ 
+ struct NvKmsKapiConnectorInfo*

@@ -33,7 +33,6 @@ REQUIRED_USE="
 "
 
 COMMON="
-	app-eselect/eselect-opencl
 	driver? ( kernel_linux? ( acct-group/video ) )
 	kernel_linux? ( >=sys-libs/glibc-2.6.1 )
 	tools? (
@@ -44,7 +43,7 @@ COMMON="
 			x11-libs/gtk+:3
 		)
 		x11-libs/cairo
-		x11-libs/gdk-pixbuf[X]
+		x11-libs/gdk-pixbuf
 		x11-libs/gtk+:2
 		x11-libs/libX11
 		x11-libs/libXext
@@ -71,6 +70,7 @@ RDEPEND="
 	${COMMON}
 	acpi? ( sys-power/acpid )
 	tools? ( !media-video/nvidia-settings )
+	uvm? ( >=virtual/opencl-3 )
 	wayland? ( dev-libs/wayland[${MULTILIB_USEDEP}] )
 	X? (
 		<x11-base/xorg-server-1.20.99:=
@@ -83,46 +83,15 @@ RDEPEND="
 QA_PREBUILT="opt/* usr/lib*"
 S=${WORKDIR}/
 
-nvidia_drivers_versions_check() {
-	if use amd64 && has_multilib_profile && \
-		[ "${DEFAULT_ABI}" != "amd64" ]; then
-		eerror "This ebuild doesn't currently support changing your default ABI"
-		die "Unexpected \${DEFAULT_ABI} = ${DEFAULT_ABI}"
-	fi
-
-	if use kernel_linux && kernel_is ge 5 6; then
-		ewarn "Gentoo supports kernels which are supported by NVIDIA"
-		ewarn "which are limited to the following kernels:"
-		ewarn "<sys-kernel/gentoo-sources-5.6"
-		ewarn "<sys-kernel/vanilla-sources-5.6"
-		ewarn ""
-		ewarn "You are free to utilize epatch_user to provide whatever"
-		ewarn "support you feel is appropriate, but will not receive"
-		ewarn "support as a result of those changes."
-		ewarn ""
-		ewarn "Do not file a bug report about this."
-		ewarn ""
-	fi
-
-	# Since Nvidia ships many different series of drivers, we need to give the user
-	# some kind of guidance as to what version they should install. This tries
-	# to point the user in the right direction but can't be perfect. check
-	# nvidia-driver.eclass
-	nvidia-driver-check-warning
-
-	# Kernel features/options to check for
-	CONFIG_CHECK="!DEBUG_MUTEXES !I2C_NVIDIA_GPU ~!LOCKDEP ~MTRR ~SYSVIPC ~ZONE_DMA"
-
-	# Now do the above checks
-	use kernel_linux && check_extra_config
-}
+NV_KV_MAX_PLUS="5.9"
+CONFIG_CHECK="!DEBUG_MUTEXES ~!I2C_NVIDIA_GPU ~!LOCKDEP ~MTRR ~SYSVIPC ~ZONE_DMA"
 
 pkg_pretend() {
-	nvidia_drivers_versions_check
+	nvidia-driver_check
 }
 
 pkg_setup() {
-	nvidia_drivers_versions_check
+	nvidia-driver_check
 
 	# try to turn off distcc and ccache for people that have a problem with it
 	export DISTCC_DISABLE=1
@@ -200,9 +169,24 @@ src_prepare() {
 		sed -e '657s/DRIVER_PRIME |//' -i ${WORKDIR}/kernel/nvidia-drm/nvidia-drm-drv.c
 	fi
 
-	if use kernel_linux && kernel_is ge 5 6; then
+	if use kernel_linux && kernel_is ge 5 5; then
 		einfo "Patching files for kernels higher than 5.5"
-		epatch ${FILESDIR}/${P}-linux_5.5_comp.patch
+		eapply ${FILESDIR}/${P}-linux_5.5_comp.patch
+	fi
+
+	if use kernel_linux && kernel_is ge 5 6; then
+		einfo "Patching files for kernels higher than 5.6"
+		eapply ${FILESDIR}/${P}-linux_5.6_comp.patch
+	fi
+
+	if use kernel_linux && kernel_is ge 5 7; then
+		einfo "Patching files for kernels higher than 5.7"
+		eapply ${FILESDIR}/${P}-linux_5.7_comp.patch
+	fi
+
+	if use kernel_linux && kernel_is ge 5 8; then
+		einfo "Patching files for kernels higher than 5.8"
+		eapply ${FILESDIR}/${P}-linux_5.8_comp.patch
 	fi
 
 	default
@@ -576,7 +560,6 @@ pkg_postinst() {
 	if ! use libglvnd; then
 		use X && "${ROOT}"/usr/bin/eselect opengl set --use-old nvidia
 	fi
-	"${ROOT}"/usr/bin/eselect opencl set --use-old nvidia
 
 	readme.gentoo_print_elog
 

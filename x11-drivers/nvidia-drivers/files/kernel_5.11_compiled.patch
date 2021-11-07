@@ -1,0 +1,179 @@
+--- a/kernel/common/inc/nv-mm.h	2021-05-02 23:02:30.302582249 +0200
++++ b/kernel/common/inc/nv-mm.h	2021-05-02 20:31:35.486237174 +0200
+@@ -30,7 +30,7 @@
+ #endif
+ 
+ #ifndef NV_VMF_INSERT_PFN_PRESENT
+-typedef int vm_fault_t;
++//typedef int vm_fault_t;
+ #endif
+ 
+ /* get_user_pages
+diff -aur ./conftest.sh /root/kernel/conftest.sh
+--- a/kernel/conftest.sh	2021-05-02 23:02:30.342582250 +0200
++++ b/kernel/conftest.sh	2021-05-02 23:06:39.912591761 +0200
+@@ -1328,24 +1328,6 @@
+             #endif
+ 
+             void conftest_drm_available(void) {
+-                struct drm_driver drv;
+-
+-                /* 2013-01-15 89177644a7b6306e6084a89eab7e290f4bfef397 */
+-                drv.gem_prime_pin = 0;
+-                drv.gem_prime_get_sg_table = 0;
+-                drv.gem_prime_vmap = 0;
+-                drv.gem_prime_vunmap = 0;
+-                (void)drm_gem_prime_import;
+-                (void)drm_gem_prime_export;
+-
+-                /* 2013-10-02 1bb72532ac260a2d3982b40bdd4c936d779d0d16 */
+-                (void)drm_dev_alloc;
+-
+-                /* 2013-10-02 c22f0ace1926da399d9a16dfaf09174c1b03594c */
+-                (void)drm_dev_register;
+-
+-                /* 2013-10-02 c3a49737ef7db0bdd4fcf6cf0b7140a883e32b2a */
+-                (void)drm_dev_unregister;
+             }"
+ 
+             compile_check_conftest "$CODE" "NV_DRM_AVAILABLE" "" "generic"
+@@ -2385,6 +2367,74 @@
+             compile_check_conftest "$CODE" "NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ" "" "types"
+         ;;
+ 
++        drm_driver_has_gem_prime_callbacks)
++            #
++            # Determine if drm_driver structure has the GEM and PRIME callback
++            # function pointers.
++            #
++            # The GEM and PRIME callback are removed from drm_driver
++            # structure, by commit d693def4fd1c ("drm: Remove obsolete GEM and
++            # PRIME callbacks from struct drm_driver").
++            #
++            CODE="
++            #if defined(NV_DRM_DRMP_H_PRESENT)
++            #include <drm/drmP.h>
++            #endif
++
++            #if defined(NV_DRM_DRM_DRV_H_PRESENT)
++            #include <drm/drm_drv.h>
++            #endif
++
++            void conftest_drm_driver_has_gem_and_prime_callbacks(void) {
++                struct drm_driver drv;
++
++                drv.gem_prime_pin = 0;
++                drv.gem_prime_get_sg_table = 0;
++                drv.gem_prime_vmap = 0;
++                drv.gem_prime_vunmap = 0;
++                drv.gem_vm_ops = 0;
++            }"
++
++            compile_check_conftest "$CODE" "NV_DRM_DRIVER_HAS_GEM_PRIME_CALLBACKS" "" "types"
++        ;;
++
++        drm_crtc_atomic_check_has_atomic_state_arg)
++            #
++            # Determine if drm_crtc_helper_funcs::atomic_check takes 'state'
++            # argument of 'struct drm_atomic_state' type.
++            #
++            # The commit 29b77ad7b9ca ("drm/atomic: Pass the full state to CRTC
++            # atomic_check") passed the full atomic state to
++            # drm_crtc_helper_funcs::atomic_check()
++            #
++            # Turning incompatible-pointer-types check into error is necessary
++            # to make test fail if drm_crtc_helper_funcs::atomic_check is taking
++            # 'crtc_state' instead of 'state', otherwise test simply pass
++            # because compilation succeeds throwing incompatible-pointer-types
++            # warning. This test is expected to fail on Linux kernels <= v5.10,
++            # the commit ea8daa7b9784 ("kbuild: Add option to turn incompatible
++            # pointer check into error") has turned incompatible-pointer-types
++            # check into error from v4.6.
++            #
++            echo "$CONFTEST_PREAMBLE
++            #include <drm/drm_modeset_helper_vtables.h>
++            int conftest_drm_crtc_atomic_check_has_atomic_state_arg(
++                    struct drm_crtc *crtc, struct drm_atomic_state *state) {
++                const struct drm_crtc_helper_funcs *funcs = crtc->helper_private;
++                return funcs->atomic_check(crtc, state);
++            }" > conftest$$.c
++
++            $CC $CFLAGS -Werror=incompatible-pointer-types -c conftest$$.c > /dev/null 2>&1
++            rm -f conftest$$.c
++
++            if [ -f conftest$$.o ]; then
++                rm -f conftest$$.o
++                echo "#define NV_DRM_CRTC_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG" | append_conftest "types"
++            else
++                echo "#undef NV_DRM_CRTC_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG" | append_conftest "types"
++            fi
++        ;;
++
+         drm_crtc_state_has_connectors_changed)
+             #
+             # Determine if the crtc_state has a 'connectors_changed' field.
+--- a/kernel/nvidia-drm/nvidia-drm-crtc.c	2019-10-27 02:02:39.000000000 +0100
++++ b/kernel/nvidia-drm/nvidia-drm-crtc.c	2021-05-02 22:50:18.608554364 +0200
+@@ -336,9 +336,18 @@
+  * the 'nv_drm_crtc_state::req_config', that is fine becase 'nv_drm_crtc_state'
+  * will be discarded if ->atomic_check() fails.
+  */
++#if !defined(NV_DRM_CRTC_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG)
++static int nv_drm_crtc_atomic_check(struct drm_crtc *crtc,
++                                    struct drm_atomic_state *state)
++#else
+ static int nv_drm_crtc_atomic_check(struct drm_crtc *crtc,
+                                     struct drm_crtc_state *crtc_state)
++#endif
+ {
++#if !defined(NV_DRM_CRTC_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG)
++    struct drm_crtc_state *crtc_state =
++        drm_atomic_get_new_crtc_state(state, crtc);
++#endif
+     struct nv_drm_crtc_state *nv_crtc_state = to_nv_crtc_state(crtc_state);
+     struct NvKmsKapiHeadRequestedConfig *req_config =
+         &nv_crtc_state->req_config;
+@@ -425,7 +434,7 @@
+     .prepare    = nv_drm_crtc_prepare,
+     .commit     = nv_drm_crtc_commit,
+ #ifdef NV_DRM_CRTC_HELPER_FUNCS_HAS_ATOMIC_ENABLE
+-    .atomic_enable = nv_drm_crtc_atomic_enable,
++//    .atomic_enable = nv_drm_crtc_atomic_enable,
+ #else
+     .enable     = nv_drm_crtc_enable,
+ #endif
+--- a/kernel/nvidia-drm/nvidia-drm-drv.c	2021-05-02 23:02:30.303582249 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-drv.c	2021-05-02 21:21:59.383352413 +0200
+@@ -691,8 +691,6 @@
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_FREE_OBJECT)
+     .gem_free_object        = nv_drm_gem_free,
+-#else
+-    .gem_free_object_unlocked = nv_drm_gem_free,
+ #endif
+ 
+     .ioctls                 = nv_drm_ioctls,
+@@ -700,11 +698,14 @@
+ 
+     .prime_handle_to_fd     = drm_gem_prime_handle_to_fd,
+     .prime_fd_to_handle     = drm_gem_prime_fd_to_handle,
+-    .gem_prime_export       = drm_gem_prime_export,
+     .gem_prime_import       = nv_drm_gem_prime_import,
++
++#if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_CALLBACKS)
++    .gem_prime_export       = drm_gem_prime_export,
+     .gem_prime_get_sg_table = nv_drm_gem_prime_get_sg_table,
+     .gem_prime_vmap         = nv_drm_gem_prime_vmap,
+     .gem_prime_vunmap       = nv_drm_gem_prime_vunmap,
++#endif
+ 
+ #if defined(NV_DRM_DRIVER_HAS_GEM_PRIME_RES_OBJ)
+     .gem_prime_res_obj      = nv_drm_gem_prime_res_obj,
+@@ -760,7 +761,6 @@
+     nv_drm_driver.dumb_map_offset  = nv_drm_dumb_map_offset;
+     nv_drm_driver.dumb_destroy     = drm_gem_dumb_destroy;
+ 
+-    nv_drm_driver.gem_vm_ops       = &nv_drm_gem_vma_ops;
+ #endif /* NV_DRM_ATOMIC_MODESET_AVAILABLE */
+ }
+ 

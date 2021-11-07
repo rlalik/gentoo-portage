@@ -1,0 +1,86 @@
+--- a/kernel/conftest.sh	2021-11-07 16:15:27.006411286 +0100
++++ b/kernel/conftest.sh	2021-11-07 17:12:06.269188697 +0100
+@@ -3835,6 +3835,29 @@
+             fi
+         ;;
+ 
++        drm_device_has_pdev)
++            #
++            # Determine if the 'drm_device' structure has a 'pdev' field.
++            #
++            # Removed by commit b347e04452ff ("drm: Remove pdev field from
++            # struct drm_device") in v5.14-rc1.
++            #
++            CODE="
++            #if defined(NV_DRM_DRMP_H_PRESENT)
++            #include <drm/drmP.h>
++            #endif
++
++            #if defined(NV_DRM_DRM_DEVICE_H_PRESENT)
++            #include <drm/drm_device.h>
++            #endif
++
++            int conftest_drm_device_has_pdev(void) {
++                return offsetof(struct drm_device, pdev);
++            }"
++
++            compile_check_conftest "$CODE" "NV_DRM_DEVICE_HAS_PDEV" "" "types"
++        ;;
++
+         smp_read_barrier_depends)
+             CODE="
+             #include <asm/barrier.h>
+--- a/kernel/nvidia-drm/nvidia-drm.Kbuild	2021-11-07 16:15:27.007411286 +0100
++++ b/kernel/nvidia-drm/nvidia-drm.Kbuild	2021-11-07 17:12:49.117185891 +0100
+@@ -97,3 +97,4 @@
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_prime_flag_present
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_gem_object_has_resv
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_plane_atomic_check_has_atomic_state_arg
++NV_CONFTEST_TYPE_COMPILE_TESTS += drm_device_has_pdev
+--- a/kernel/nvidia-drm/nvidia-drm-drv.c	2021-11-07 16:15:26.989411287 +0100
++++ b/kernel/nvidia-drm/nvidia-drm-drv.c	2021-11-07 17:10:14.637196007 +0100
+@@ -785,7 +785,7 @@
+ 
+     if (nv_dev == NULL) {
+         NV_DRM_LOG_ERR(
+-            "Failed to allocate memmory for NVIDIA-DRM device object");
++            "Failed to allocate memory for NVIDIA-DRM device object");
+         return;
+     }
+ 
+@@ -806,7 +806,12 @@
+ 
+     dev->dev_private = nv_dev;
+     nv_dev->dev = dev;
+-    dev->pdev = pdev;
++
++#if defined(NV_DRM_DEVICE_HAS_PDEV)
++    if (device->bus == &pci_bus_type) {
++        dev->pdev = to_pci_dev(device);
++    }
++#endif
+ 
+     /* Register DRM device to DRM sub-system */
+ 
+--- a/kernel/nvidia/os-interface.c	2021-11-07 16:15:26.854411296 +0100
++++ b/kernel/nvidia/os-interface.c	2021-11-07 16:35:59.659330570 +0100
+@@ -596,7 +596,7 @@
+         // the requested timeout has expired, loop until less
+         // than a jiffie of the desired delay remains.
+         //
+-        current->state = TASK_INTERRUPTIBLE;
++        set_current_state(TASK_INTERRUPTIBLE);
+         do
+         {
+             schedule_timeout(jiffies);
+--- a/kernel/nvidia/nvlink_linux.c	2021-11-07 16:15:26.853411296 +0100
++++ b/kernel/nvidia/nvlink_linux.c	2021-11-07 17:05:35.348214295 +0100
+@@ -582,7 +582,7 @@
+         // the requested timeout has expired, loop until less
+         // than a jiffie of the desired delay remains.
+         //
+-        current->state = TASK_INTERRUPTIBLE;
++        set_current_state(TASK_INTERRUPTIBLE);
+         do
+         {
+             schedule_timeout(jiffies);

@@ -1,0 +1,98 @@
+--- a/kernel/conftest.sh	2021-08-23 21:48:15.723236495 +0200
++++ b/kernel/conftest.sh	2021-08-23 21:46:56.029241713 +0200
+@@ -2062,6 +2062,26 @@
+             compile_check_conftest "$CODE" "NV_DRM_DRIVER_HAS_LEGACY_DEV_LIST" "" "types"
+         ;;
+ 
++        drm_driver_has_device_list)
++            #
++			# At some point also legacy_dev_list os gone.
++            #
++            CODE="
++            #if defined(NV_DRM_DRMP_H_PRESENT)
++            #include <drm/drmP.h>
++            #endif
++
++            #if defined(NV_DRM_DRM_DRV_H_PRESENT)
++            #include <drm/drm_drv.h>
++            #endif
++
++            int conftest_drm_driver_has_device_list(void) {
++                return offsetof(struct drm_driver, device_list);
++            }"
++
++            compile_check_conftest "$CODE" "NV_DRM_DRIVER_HAS_DEVICE_LIST" "" "types"
++        ;;
++
+         drm_driver_has_gem_free_object)
+             CODE="
+             #if defined(NV_DRM_DRMP_H_PRESENT)
+--- a/kernel/nvidia-drm/nvidia-drm-drv.c	2021-08-23 21:23:51.756332358 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-drv.c	2021-08-23 21:47:43.763238588 +0200
+@@ -731,7 +731,7 @@
+ 
+ #if defined(NV_DRM_DRIVER_HAS_LEGACY_DEV_LIST)
+     .legacy_dev_list        = LIST_HEAD_INIT(nv_drm_driver.legacy_dev_list),
+-#else
++#elif defined(NV_DRM_DRIVER_HAS_DEVICE_LIST)
+     .device_list            = LIST_HEAD_INIT(nv_drm_driver.device_list),
+ #endif
+ };
+@@ -759,7 +759,7 @@
+ 
+     nv_drm_driver.dumb_create      = nv_drm_dumb_create;
+     nv_drm_driver.dumb_map_offset  = nv_drm_dumb_map_offset;
+-    nv_drm_driver.dumb_destroy     = drm_gem_dumb_destroy;
++    nv_drm_driver.dumb_destroy     = nv_drm_dumb_destroy;
+ 
+ #endif /* NV_DRM_ATOMIC_MODESET_AVAILABLE */
+ }
+--- a/kernel/nvidia-drm/nvidia-drm.Kbuild   2021-08-23 21:52:06.986221351 +0200
++++ b/kernel/nvidia-drm/nvidia-drm.Kbuild   2021-08-23 21:57:52.244198743 +0200
+@@ -74,6 +74,7 @@
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_bus_has_get_irq
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_bus_has_get_name
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_legacy_dev_list
++NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_device_list
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_gem_free_object
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_display_mode_has_vrefresh
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_set_busid
+--- a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.h 2019-10-27 02:02:39.000000000 +0100
++++ b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.h 2021-08-23 22:31:14.991067600 +0200
+@@ -92,6 +92,10 @@
+                            struct drm_device *dev, uint32_t handle,
+                            uint64_t *offset);
+ 
++int nv_drm_dumb_destroy(struct drm_file *file,
++                        struct drm_device *dev,
++                        uint32_t handle);
++
+ struct drm_gem_object *nv_drm_gem_nvkms_prime_import(
+     struct drm_device *dev,
+     struct drm_gem_object *gem);
+--- a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c 2021-08-23 22:01:19.175185193 +0200
++++ b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c 2021-08-23 22:31:35.175066278 +0200
+@@ -377,6 +377,13 @@
+     return ret;
+ }
+ 
++int nv_drm_dumb_destroy(struct drm_file *file,
++                        struct drm_device *dev,
++                        uint32_t handle)
++{
++    return drm_gem_handle_delete(file, handle);
++}
++
+ /*
+  * Note that nv_drm_vma_fault() can be called for different or same
+  * ranges of the same drm_gem_object simultaneously.
+--- a/nvidia-settings/src/gtk+-2.x/ctkwindow.c    2021-08-24 00:39:55.016562080 +0200
++++ b/nvidia-settings/src/gtk+-2.x/ctkwindow.c    2021-08-24 00:39:46.440562642 +0200
+@@ -61,7 +61,6 @@
+ #include "ctkserver.h"
+ #include "ctkecc.h"
+ #include "ctkgridlicense.h"
+-#include "ctkvdpau.h"
+ 
+ #include "ctkappprofile.h"
+ 

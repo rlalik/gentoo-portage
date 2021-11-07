@@ -1,0 +1,119 @@
+diff -Nru NVIDIA-Linux-x86_64-418.113/kernel/common/inc/nv-linux.h NVIDIA-Linux-x86_64-418.113-new/kernel/common/inc/nv-linux.h
+--- NVIDIA-Linux-x86_64-418.113/kernel/common/inc/nv-linux.h	2021-01-05 15:41:22.056405014 +0200
++++ NVIDIA-Linux-x86_64-418.113-new/kernel/common/inc/nv-linux.h	2021-01-05 13:55:48.893053594 +0200
+@@ -178,6 +178,9 @@
+ #if defined(NV_VM_INSERT_PAGE_PRESENT)
+ #include <linux/pagemap.h>
+ #include <linux/dma-mapping.h>
++#if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++#include <linux/dma-map-ops.h>
++#endif
+ #endif
+ 
+ #if defined(CONFIG_SWIOTLB) && defined(NVCPU_AARCH64)
+diff -Nru NVIDIA-Linux-x86_64-418.113/kernel/conftest.sh NVIDIA-Linux-x86_64-418.113-new/kernel/conftest.sh
+--- NVIDIA-Linux-x86_64-418.113/kernel/conftest.sh	2021-01-05 15:41:22.056405014 +0200
++++ NVIDIA-Linux-x86_64-418.113-new/kernel/conftest.sh	2021-01-05 13:59:39.748444468 +0200
+@@ -133,6 +133,7 @@
+     FILES="$FILES xen/ioemu.h"
+     FILES="$FILES linux/fence.h"
+     FILES="$FILES linux/dma-resv.h"
++    FILES="$FILES linux/dma-map-ops.h"
+     FILES="$FILES linux/ioctl32.h"
+ 
+     # Arch specific headers which need testing
+@@ -1618,6 +1619,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_phys_to_dma(void) {
+                 phys_to_dma();
+             }"
+@@ -1632,6 +1636,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_dma_ops(void) {
+                 (void)dma_ops;
+             }"
+@@ -1646,6 +1653,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_dma_ops(void) {
+                 (void)swiotlb_dma_ops;
+             }"
+@@ -1668,6 +1678,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_get_dma_ops(void) {
+                 get_dma_ops();
+             }"
+@@ -1688,6 +1701,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_noncoherent_swiotlb_dma_ops(void) {
+                 (void)noncoherent_swiotlb_dma_ops;
+             }"
+@@ -1704,6 +1720,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_dma_map_resource(void) {
+                 dma_map_resource();
+             }"
+@@ -3604,6 +3623,9 @@
+             #
+             CODE="
+             #include <linux/dma-mapping.h>
++            #if defined(NV_LINUX_DMA_MAP_OPS_H_PRESENT)
++            #include <linux/dma-map-ops.h>
++            #endif
+             void conftest_dma_is_direct(void) {
+                 dma_is_direct();
+             }"
+diff -Nru NVIDIA-Linux-x86_64-418.113/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c NVIDIA-Linux-x86_64-418.113-new/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c
+--- NVIDIA-Linux-x86_64-418.113/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c	2021-01-05 15:41:22.036405520 +0200
++++ NVIDIA-Linux-x86_64-418.113-new/kernel/nvidia-drm/nvidia-drm-gem-user-memory.c	2021-01-05 15:12:10.256340034 +0200
+@@ -20,6 +20,7 @@
+  * DEALINGS IN THE SOFTWARE.
+  */
+ 
++#include <linux/version.h>
+ #include "nvidia-drm-conftest.h"
+ 
+ #if defined(NV_DRM_AVAILABLE)
+@@ -47,8 +48,13 @@
+ {
+     struct nv_drm_gem_user_memory *nv_user_memory = to_nv_user_memory(nv_gem);
+ 
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
++    return drm_prime_pages_to_sg(nv_gem->nv_dev->dev, nv_user_memory->pages,
++                                 nv_user_memory->pages_count);
++#else
+     return drm_prime_pages_to_sg(nv_user_memory->pages,
+                                  nv_user_memory->pages_count);
++#endif
+ }
+ 
+ static void *__nv_drm_gem_user_memory_prime_vmap(

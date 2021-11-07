@@ -1,0 +1,102 @@
+--- a/kernel/conftest.sh	2021-11-07 13:16:39.028113772 +0100
++++ b/kernel/conftest.sh	2021-11-07 13:49:38.766984135 +0100
+@@ -3797,7 +3797,44 @@
+ 
+             compile_check_conftest "$CODE" "NV_DRM_GEM_OBJECT_HAS_RESV" "" "types"
+         ;;
+- 
++
++        drm_plane_atomic_check_has_atomic_state_arg)
++            #
++            # Determine if drm_plane_helper_funcs::atomic_check takes 'state'
++            # argument of 'struct drm_atomic_state' type.
++            #
++            # The commit 7c11b99a8e58 ("drm/atomic: Pass the full state to
++            # planes atomic_check") passed the full atomic state to
++            # drm_plane_helper_funcs::atomic_check()
++            #
++            # To test the signature of drm_plane_helper_funcs::atomic_check(),
++            # declare a function prototype with typeof ::atomic_check(), and then
++            # define the corresponding function implementation with the expected
++            # signature.  Successful compilation indicates that ::atomic_check()
++            # has the expected signature.
++            #
++            echo "$CONFTEST_PREAMBLE
++            #include <drm/drm_modeset_helper_vtables.h>
++
++            static const struct drm_plane_helper_funcs *funcs;
++            typeof(*funcs->atomic_check) conftest_drm_plane_atomic_check_has_atomic_state_arg;
++
++            int conftest_drm_plane_atomic_check_has_atomic_state_arg(
++                    struct drm_plane *plane, struct drm_atomic_state *state) {
++                return 0;
++            }" > conftest$$.c
++
++            $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
++            rm -f conftest$$.c
++
++            if [ -f conftest$$.o ]; then
++                rm -f conftest$$.o
++                echo "#define NV_DRM_PLANE_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG" | append_conftest "types"
++            else
++                echo "#undef NV_DRM_PLANE_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG" | append_conftest "types"
++            fi
++        ;;
++
+         smp_read_barrier_depends)
+             CODE="
+             #include <asm/barrier.h>
+--- a/kernel/nvidia-drm/nvidia-drm.Kbuild	2021-11-07 13:16:39.029113772 +0100
++++ b/kernel/nvidia-drm/nvidia-drm.Kbuild	2021-11-07 13:43:54.006006711 +0100
+@@ -96,3 +96,4 @@
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_atomic_helper_swap_state_has_stall_arg
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_prime_flag_present
+ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_gem_object_has_resv
++NV_CONFTEST_TYPE_COMPILE_TESTS += drm_plane_atomic_check_has_atomic_state_arg
+--- a/kernel/nvidia-drm/nvidia-drm-crtc.c	2021-11-07 13:16:38.960113776 +0100
++++ b/kernel/nvidia-drm/nvidia-drm-crtc.c	2021-11-07 13:49:08.493986118 +0100
+@@ -130,9 +130,18 @@
+         old_config.dstHeight != req_config->config.dstHeight;
+ }
+ 
++#if defined(NV_DRM_PLANE_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG)
++static int nv_drm_plane_atomic_check(struct drm_plane *plane,
++                                     struct drm_atomic_state *state)
++#else
+ static int nv_drm_plane_atomic_check(struct drm_plane *plane,
+                                      struct drm_plane_state *plane_state)
++#endif
+ {
++#if defined(NV_DRM_PLANE_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG)
++    struct drm_plane_state *plane_state =
++        drm_atomic_get_new_plane_state(state, plane);
++#endif
+     int i;
+     struct drm_crtc *crtc;
+     struct drm_crtc_state *crtc_state;
+@@ -165,16 +174,6 @@
+     return 0;
+ }
+ 
+-static void nv_drm_plane_atomic_update(struct drm_plane *plane,
+-                                       struct drm_plane_state *old_state)
+-{
+-}
+-
+-static void nv_drm_plane_atomic_disable(struct drm_plane *plane,
+-                                        struct drm_plane_state *old_state)
+-{
+-}
+-
+ static const struct drm_plane_funcs nv_plane_funcs = {
+     .update_plane           = drm_atomic_helper_update_plane,
+     .disable_plane          = drm_atomic_helper_disable_plane,
+@@ -186,8 +185,6 @@
+ 
+ static const struct drm_plane_helper_funcs nv_plane_helper_funcs = {
+     .atomic_check   = nv_drm_plane_atomic_check,
+-    .atomic_update  = nv_drm_plane_atomic_update,
+-    .atomic_disable = nv_drm_plane_atomic_disable,
+ };
+ 
+ static void nv_drm_crtc_destroy(struct drm_crtc *crtc)

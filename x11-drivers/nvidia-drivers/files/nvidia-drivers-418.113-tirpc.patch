@@ -1,0 +1,20 @@
+--- a/nvidia-persistenced/Makefile	2021-06-10 05:48:50.022835089 +0200
++++ b/nvidia-persistenced/Makefile	2021-06-10 05:56:56.551803230 +0200
+@@ -85,7 +85,7 @@
+ common_cflags += -I $(NVIDIA_CFG_DIR)
+ common_cflags += -I $(NVIDIA_NUMA_DIR)
+ common_cflags += -I $(RPC_DIR)
+-common_cflags += -I .
++common_cflags += -I . -I /usr/include/tirpc
+ 
+ include version.mk
+ common_cflags += -DPROGRAM_NAME=\"$(NVIDIA_PERSISTENCED_PROGRAM_NAME)\"
+@@ -96,6 +96,8 @@
+ CFLAGS += $(common_cflags)
+ HOST_CFLAGS += $(common_cflags)
+ 
++LIBS += -ltirpc
++
+ ifneq ($(TARGET_OS),FreeBSD)
+   LIBS += -ldl
+ endif
